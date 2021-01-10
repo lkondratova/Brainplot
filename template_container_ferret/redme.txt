@@ -1,0 +1,6 @@
+#ferret
+1. templates: https://scalablebrainatlas.incf.org/templates/HSRetal17/coronal_TE_70/Template4D_TE070_0092.jpg
+2. Original size: 152*80, resized to 450*237 and sarpening filter applied.
+3. Slices from 162 to 20.
+4. 143 slices (by 1).
+5. Images are symmetric.
