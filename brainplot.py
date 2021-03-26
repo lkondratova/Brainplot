@@ -2,64 +2,121 @@ import os, importlib, matplotlib, pandas as pd, numpy as np, matplotlib.pyplot a
 import time
 from PIL import Image, ImageDraw, ImageColor, ImageFilter, ImageFont
 
+
+#universal function to look up available areas for the animal
+#************************************************
 def initialization():
+    #first look for a file auto_input.txt
     global dirpath, readings, animal, templates, left, right, areas, areas1, urls, y
-    global ferret, human, macaque, mouse, mouse_allen, opossum, rat  
+    global ferret, human, macaque, mouse, mouse_allen, opossum, rat
     urls = {'macaque':'https://scalablebrainatlas.incf.org/macaque/CBCetal15', 
         'mouse_allen':'https://scalablebrainatlas.incf.org/mouse/ABA_v3',
         'mouse':'https://scalablebrainatlas.incf.org/mouse/WHS12',
        'rat':'https://scalablebrainatlas.incf.org/rat/CBWJ13_age_P80',
        'human':'https://scalablebrainatlas.incf.org/human/NMM1103',
        'ferret':'https://scalablebrainatlas.incf.org/ferret/HSRetal17',
-       'opossum':'https://scalablebrainatlas.incf.org/opossum/OPSM14'}    
+       'opossum':'https://scalablebrainatlas.incf.org/opossum/OPSM14'}
+    
     dirpath = os.getcwd()
     readings=[]
+    animal = ''
     templates = []
     left=None
     right=None
-#set up variable 'areas'
-#variable dirpath - str, current location
-#areas_available(animal) - a function to receive all areas available for the chosen animal.
-def areas_available(animal, templates, i):
-    global t, names
-    module_to_import = "template_container_"+animal+".events"
-    module_to_import1= "template_container_"+animal+".variables"
-    y = __import__(module_to_import, globals=None, locals=None, 
-                   fromlist=['RGB_TO_ACR', 'ACR_TO_FULL', 'template_dict'])
-    x= __import__(module_to_import1, globals=None, locals=None, 
-                   fromlist=['events_by_slices'])
-    templ = y.template_dict
-    t=templ[templates[i]]
-    slice_events = x.events_by_slices[t] #this variable contains all the events present on the chosen template.
-    names = {}
-    for v in range(len(slice_events)):
-        print(slice_events[v])
-        if isinstance(slice_events[v], str):
-            if slice_events[v] in y.RGB_TO_ACR.keys():
-                names[slice_events[v]]=[(y.RGB_TO_ACR[slice_events[v]])]  
-                if y.RGB_TO_ACR[slice_events[v]] in y.ACR_TO_FULL.keys():
-                    names[slice_events[v]].append(y.ACR_TO_FULL[y.RGB_TO_ACR[slice_events[v]]])
+
+    if os.path.exists(dirpath+'/auto_input.txt') == True:
+        with open(dirpath+'/auto_input.txt') as auto_input:
+            readings=auto_input.readlines()
+            if '\n' in readings:
+                readings.remove('\n')
+            for item in range(len(readings)):
+                if readings[item].endswith('\n'):
+                    n = readings[item][0:(len(readings[item])-1)]
+                    readings[item] = n
+                if n.startswith(' '):
+                    readings[item] = n[1:]
+                if n.endswith(' '):
+                    readings[item] = n[0:(len(item)-1)]
+                    if n[i:(i+1)] =='\t':
+                        print('You might have unexpected "tab" in the row '+str(item)+', position '+str(i)+'. \n' 'If this is intended input proceed with a program. Otherwise, delete the tab and start over again.')
+
+        #set up variable 'animal'
+        animal = readings[0]
+        if animal.lower() not in urls.keys():
+            print ('Wrong name of species: '+animal)
+        #else:
+            #print ('Animal = '+animal + ' \n. Follow the url '+ urls[animal.lower()]+ ' to choose template slices to be used in your data representation')
+        #print("Labels available for regions on "+animal+"'s brain:")
+        #areas_available(animal)
+
+
+        #set up list of templates   
+        readings1=readings[1].replace(' ','')
+        templates = readings1.split(',')
+        #open all templates that will be used (from variable 'templates')
+        open_templates(animal, templates)
+
+
+        #set up variable 'areas'
+        areas = list(readings[2:2+len(templates)]) 
+        areas1=[]
+        for i in range(len(areas)):
+            tp=[]
+            areas1.append([])
+            t=areas[i].split(',')
+            tp.append(t)
+            for j in range(len(t)):
+                spl=t[j].split('$')
+                areas1[i].append(spl)
+        module_to_import = "template_container_"+animal+".events"
+        y = __import__(module_to_import, globals=None, locals=None, fromlist=['RGB_TO_ACR', 'ACR_TO_FULL', 'template_dict'])
+        globals()[animal] = y.template_dict        
+        print('File auto_input.txt processed')
+        if len(readings)>int(2+len(templates)):
+            left=str(readings[2+len(templates)])
+            right=str(readings[3+len(templates)])
+    #***************
+        #if auto_input does not exist proceed with manual input
+    else:
+        animal = input('Enter your species (macaque, mouse, mouse_allen, rat, human, ferret, opossum):') 
+        if animal.lower() in urls.keys():
+            address = urls[animal.lower()]
+            print ('You have chosen' +' '+ animal + '. Follow the url '+ urls[animal.lower()]+ ' to choose template slices to be used in your data representation')
         else:
-            pass
+            while animal.lower() not in urls.keys():
+                animal = None
+                print ('Wrong name of species')
+                animal = input('Enter your species (macaque, mouse, rat, human, ferret, opossum):')
+            address = urls[animal.lower()]
+            print ('You have chosen' +' '+ animal + ' . Follow the url '+ urls[animal.lower()]+ ' to choose template slices to be used in your data visualization')
+        globals()[animal] = y.template_dict
+        print()
+        print("Labels available for regions on "+animal+"'s brain:")
+        areas_available(animal)
 
-
-    
-def template_list():
         templates_done=False
         while templates_done == False:
             print('Enter slice #' + str(len(templates)+1) + ' that you want to use in your visualisation (use the value that is showing in parentheses):')
-            template = input() #!!!! pick the template from the window
-            #? print('Enter slice #' + str(len(templates)+1) + ' that you want to use in your visualisation (use the value that is showing in parentheses):')
-            templates.append(template)
-            print ('You selected slices # '+ ', '.join([str(elem) for elem in templates]) + ' as templates.')
+            template = input()
+            if template.isnumeric() == False:
+                print ('Please, enter an integer')
+                print('Enter slice #' + str(len(templates)+1) + ' that you want to use in your visualisation (use the value that is showing in parentheses):')
+                template = input()
+            else:
+                templates.append(template)
+            more = input('Are you done with selecting templates? y/n:')
+            if more.lower() == 'y' or more.lower() == 'yes':
+                templates_done = True
+                print ('You selected slices # '+ ', '.join([str(elem) for elem in templates]) + ' as templates.')
+            else:
+                templates_done = False
+
         #open all templates that will be used (from variable 'templates') and save in 'output' folder
-        #!!! probably just open and keep in cash.
-        #!!!!!!!!!!!!
         open_templates(animal, templates)
 
         areas1 = []
-        #make multichoice menu for each template in separate window
         areas_input(templates)
+        print('Input done!')
 
 #create variable representing slice numbers in files. 
 #templates: variable that holds slice numbers as they are in parentheses on site.
@@ -71,18 +128,61 @@ def create_templ(animal, templates):
         slice_num = globals()[animal][int(templates[i])]
         templ.append(slice_num)
         
+        
+        
+
+def areas_available (animal):
+    global np, temp, names, y
+    #create a list of all names used
+    #names are saved in fale names, variable names
+    names = []
+    for v in y.RGB_TO_ACR:
+        temp = [v, y.RGB_TO_ACR[v]]
+        if y.RGB_TO_ACR[v] in y.ACR_TO_FULL:
+            temp.append(y.ACR_TO_FULL[y.RGB_TO_ACR[v]]) 
+        names.append(temp)
+
+    #create a list of areas available for labels
+    parent_labels = []
+    for i in range(len(names)):
+        k = len(names[i])
+        parent_labels.append(names[i][k-1]) 
+    parent_labels1 = np.array(parent_labels) # parent_labels1 ia a list of all available parent labels in this atlas
+    unique = list(np.unique(parent_labels1))
+    for i in range(len(unique)):
+        print (unique[i])
+
+        
 #open all templates that will be used (from variable 'templates')
 def open_templates(animal, templates):
     global dirpath
-    dirpath = os.getcwd() #!!!!!!!!! ask user where to store output, call variable output (ask at the first step)
+    dirpath = os.getcwd()
+    if os.path.exists(str(dirpath+'/template_container_'+animal+'/output')) == False:     #create an output directory where colored images will be stored
+        os.makedirs(str(dirpath+'/template_container_'+animal+'/output'))
     for i in range(len(templates)):
-        filename = str(dirpath+'/template_container_'+animal+'/slice_numbers/'+templates[i]+'.png') #at this point templates won't be #stored
+        filename = str(dirpath+'/template_container_'+animal+'/slice_numbers/'+templates[i]+'.png')
+        try:
+            with Image.open(filename) as tem:
+                temp=tem.convert('RGBA')
+                temp.save(str(dirpath+'/template_container_'+animal+'/output/'+templates[i]+"_"+str(i)+'.png'), 'PNG')
+        except IOError: 
+            print('Cannot find '+templates[i]+'.png. The template was not saved to the output folder.')
+            pass
+
+        
+
 def areas_input(templates):
     global areas1
     areas1 = []
     areas=[]
     for i in range(len(templates)):
-        #create multichoice menu with the template on the top, number of the template, and all the areas available on this template.
+        print ('********')
+        print('Enter areas to be applied to the template #'+str(templates[i])+' separated with COMMA. If you need a few areas to be colored for the values in the same column, separate them with dollar sign $ (for example: ss$cns$prs, as$ls$Putamen).') 
+        print ('For more instructions refer to the "instructions.pdf" file')
+        print()
+        print('If some areas are not represented on the templates but present in values.csv file enter "n/a".')
+        print()
+        print('The order number of entered areas should correspond to the column number in the values.csv :')
         area = input()
         areas.append(area.split(','))
     for i in range(len(areas)):
@@ -96,9 +196,9 @@ def areas_input(templates):
 
 def areas_viz():
     #create dataframe to visualize the templates and areas to be applied
-    if os.path.exists(output_dirpath+"/0_figures.html") == True:
-        os.remove(output_dirpath+"/0_figures.html")
-    html_file= open(output_dirpath+"/0_figures.html","a")
+    if os.path.exists(dirpath+'/template_container_'+animal+"/output/0_figures.html") == True:
+        os.remove(dirpath+'/template_container_'+animal+"/output/0_figures.html")
+    html_file= open(dirpath+'/template_container_'+animal+"/output/0_figures.html","a")
     html_file.write('<h1>Auto Input</h1>\n')
     module_to_import = "template_container_"+animal+".events"
     y = __import__(module_to_import, globals=None, locals=None, fromlist=['RGB_TO_ACR', 'ACR_TO_FULL'])
@@ -250,21 +350,21 @@ def to_pixel_coordinates():
 # values1.csv(left) and values2.csv(right) for two_sided_*
 
 def open_whole(colormap):
-    global data_dirpath, output_dirpath, pd, values_normalized, min_max, val, html_file
+    global dirpath, pd, values_normalized, min_max, val, html_file
     try:
-        values=pd.read_csv(data_dirpath, index_col=0)
+        values=pd.read_csv(dirpath+'/values.csv', index_col=0)
         ds=values.describe()
         ds_to_html = ds.to_html()
-        html_file= open(output_dirpath+"/output/0_figures.html","a")
+        html_file= open(dirpath+'/template_container_'+animal+"/output/0_figures.html","a")
         html_file.write('<h1>Descriptive Statistics For <i>values.csv</i></h1>\n')
         html_file.write(ds_to_html+'\n')
         plt.imshow(values, cmap=colormap)
         plt.colorbar()
-        plt.xticks(range(len(values)),values.columns, rotation=90)
+        plt.xticks(list(range(len(values.columns))),values.columns, rotation=90)
         plt.yticks(range(len(values)), values.index)
-        plt.savefig(output_dirpath+'/colormap.jpg', bbox_inches='tight')
+        plt.savefig(dirpath+'/colormap.jpg', bbox_inches='tight')
         
-        html_file.write('<img src = ' + output_dirpath+'/colormap.jpg>\n')
+        html_file.write('<img src = ' + dirpath+'/colormap.jpg>\n')
         html_file.close()
         #os.remove(dirpath+'colormap.png')
         plt.show()
@@ -291,22 +391,20 @@ def open_whole(colormap):
 
     
 def open_two_sided(colormap):
-    global data_dirpath, data_dirpath2, output_dirpath, pd, values1_normalized, values2_normalized, min_max, val
+    global dirpath, pd, values1_normalized, values2_normalized, min_max, val
     try:
-        values1=pd.read_csv(data_dirpath, index_col=0)
+        values1=pd.read_csv(dirpath+'/values1.csv', index_col=0)
         ds=values1.describe()
         ds_to_html = ds.to_html()
-        html_file= open(data_dirpath+"/0_figures.html","a")
-        
-        
+        html_file= open(dirpath+'/template_container_'+animal+"/output/0_figures.html","a")
         html_file.write('<h1>Descriptive Statistics For <i>values1.csv</i></h1>\n')
         html_file.write(ds_to_html+'\n')
         plt.imshow(values1, cmap=colormap)
         plt.colorbar()
-        plt.xticks(range(len(values1)),values1.columns, rotation=90)
+        plt.xticks(range(len(values1.columns)),values1.columns, rotation=90)
         plt.yticks(range(len(values1)), values1.index)
-        plt.savefig(output_dirpath+'/colormap1.jpg', bbox_inches='tight')
-        html_file.write('<img src = ' + output_dirpath+'/colormap1.jpg>\n')
+        plt.savefig(dirpath+'/colormap1.jpg', bbox_inches='tight')
+        html_file.write('<img src = ' + dirpath+'/colormap1.jpg>\n')
         plt.show()
         print("Identified file 'values1.csv' \n")
         #print(values1.describe(), ' \n')
@@ -320,18 +418,18 @@ def open_two_sided(colormap):
         print("Data types in 'values1.csv' are not uniform.")
         pass
     try:
-        values2=pd.read_csv(data_dirpath, index_col=0)
+        values2=pd.read_csv(dirpath+'/values2.csv', index_col=0)
         ds2=values2.describe()
         ds2_to_html = ds2.to_html()
-        html_file= open(output_dirpath+"/0_figures.html","a")
+        html_file= open(dirpath+'/template_container_'+animal+"/output/0_figures.html","a")
         html_file.write('<h1>Descriptive Statistics For <i>values2.csv</i></h1>\n')
         html_file.write(ds2_to_html+'\n')
         plt.imshow(values2, cmap=colormap)
         plt.colorbar()
-        plt.xticks(range(len(values2)),values2.columns, rotation=90)
+        plt.xticks(range(len(values2.columns)),values2.columns, rotation=90)
         plt.yticks(range(len(values2)), values2.index)
-        plt.savefig(output_dirpath+'/colormap2.jpg', bbox_inches='tight')
-        html_file.write('<img src = ' + output_dirpath+'/colormap2.jpg>\n')
+        plt.savefig(dirpath+'/colormap2.jpg', bbox_inches='tight')
+        html_file.write('<img src = ' + dirpath+'/colormap2.jpg>\n')
         plt.show()
         print("Identified file 'values2.csv' \n")
         #print(values2.describe(), ' \n') 
@@ -349,8 +447,8 @@ def open_two_sided(colormap):
     values1.plot(kind='box', color='blue', ax=ax1, rot=45)
     values2.plot(kind='box', color='yellow', ax=ax1, rot=45)
     html_file.write('<h1>Overlap by Columns. <i>values1</i>: blue & <i>values2</i>: yellow</h1>\n')
-    plt.savefig(output_dirpath+'/boxplot.jpg', bbox_inches='tight')
-    html_file.write('<img src = ' + output_dirpath+'/boxplot.jpg>\n')
+    plt.savefig(dirpath+'/boxplot.jpg', bbox_inches='tight')
+    html_file.write('<img src = ' + dirpath+'/boxplot.jpg>\n')
     html_file.close()
     #plt.show()
     max_col1=values1.max()
@@ -377,7 +475,7 @@ def open_two_sided(colormap):
 #change the 'whole_one_color' function
 def whole_colormap(colormap='viridis'):
     global cv2, os, Image, ImageDraw, ImageColor, ImageFilter, ImageFont, time
-    global labels_list,values_normalized, output_dirpath, dirpath, val, min_max, im_name
+    global labels_list,values_normalized, dirpath, val, min_max, im_name
     start_time = time.time()
     #colormaps https://matplotlib.org/3.2.1/tutorials/colors/colormaps.html
     #https://matplotlib.org/examples/color/colormaps_reference.html
@@ -395,7 +493,7 @@ def whole_colormap(colormap='viridis'):
     im = ax.imshow(np.array(min_max).reshape((2, 1)),cmap=cmap)
     plt.colorbar(im, ax=ax)
     ax.remove()
-    plt.savefig(output_dirpath+'/colorbar.png', bbox_inches='tight')
+    plt.savefig(dirpath+'/template_container_'+animal+'/output/colorbar.png', bbox_inches='tight')
     colors = []
     im_name = list(val[0].index)
     for i in range(len(val)):
@@ -414,7 +512,7 @@ def whole_colormap(colormap='viridis'):
         global width, height
         identifier=str(im_name) #name is a variable from the outer loop iterating though the index column
         slice_no = str(slice_no) 
-        out_dir = os.fsencode(output_dirpath+'/output') 
+        out_dir = os.fsencode(dirpath+'/template_container_'+animal+'/output') 
         for file in os.listdir(out_dir):
             filename = os.fsdecode(file)
             if filename.startswith(slice_no):
@@ -439,7 +537,7 @@ def whole_colormap(colormap='viridis'):
                 templ1 = templ1.filter(ImageFilter.GaussianBlur(radius=1))
                 templ1.palette = None
                 templ.paste(templ1, (0,0), templ1)
-                templ.save(str(output_dirpath+'/output/'+label_name+'.png'), 'PNG')
+                templ.save(str(dirpath+'/template_container_'+animal+'/output/'+label_name+'.png'), 'PNG')
 
     for name in range(len(im_name)):
         for t in range(len(templates)):
@@ -447,33 +545,33 @@ def whole_colormap(colormap='viridis'):
     #saving .pdf
     #variable im_name is a list that holds names for all samples from the file values.csv as strings
     #width, height go from the previous function and are the width and height of the template and saved images
-    if not os.path.exists(output_dirpath +'/output/pdf'):
-        os.makedirs(output_dirpath+'/output/pdf')
+    if not os.path.exists(dirpath + '/template_container_' + animal + '/output/pdf'):
+        os.makedirs(dirpath+'/template_container_'+animal+'/output/pdf')
     for i in range(len(im_name)):
         colorbar_size = (int(75*(270/width)), int(height*(270/width)))
         background_size=(int((270*len(templates))+colorbar_size[0]), int(height*(270/width)+25))    
         background = Image.new('RGBA', background_size, (255, 0, 0, 0))
-        cb = Image.open(output_dirpath+'/colorbar.png')
+        cb = Image.open(dirpath+'/template_container_'+animal+'/output/colorbar.png')
         cb_resized=cb.resize(colorbar_size, Image.LANCZOS)
         background.paste(cb_resized, ((270*len(templates)),0))
-        out_dir = os.fsencode(output_dirpath+'/output')
+        out_dir = os.fsencode(dirpath+'/template_container_'+animal+'/output')
         for file in os.listdir(out_dir):
             filename = os.fsdecode(file)
             if filename.startswith(im_name[i]):
-                im = Image.open(output_dirpath+'/output/'+filename)
+                im = Image.open(dirpath+'/template_container_'+animal+'/output/'+filename)
                 im.palette = None
                 resized_filename=im.resize((270, int((270/width*height))), Image.LANCZOS)
                 for j in range(len(templates)):
                     if filename[:(len(filename)-4)].endswith(templates[j]+'_'+str(j)):
                         background.paste(resized_filename, ((j*270),0))
-                background.save(output_dirpath+'/output/pdf/'+im_name[i]+'.png', 'PNG')
+                background.save(dirpath+'/template_container_'+animal+'/output/pdf/'+im_name[i]+'.png', 'PNG')
     #save all pictures from pdf folder in .pdf file
-    if not os.path.exists(output_dirpath +'/output/pdf'):
-        os.makedirs(output_dirpath+'/output/pdf')
-    if os.path.exists(output_dirpath + '/output/pdf/whole_colormap.pdf'):
-        os.remove(output_dirpath + '/output/pdf/whole_colormap.pdf')
-    pdf_file = output_dirpath+'/output/pdf/whole_colormap.pdf'
-    out_dir = os.fsencode(output_dirpath+'/output/pdf')
+    if not os.path.exists(dirpath + '/template_container_' + animal + '/output/pdf'):
+        os.makedirs(dirpath+'/template_container_'+animal+'/output/pdf')
+    if os.path.exists(dirpath + '/template_container_' + animal + '/output/pdf/whole_colormap.pdf'):
+        os.remove(dirpath+'/template_container_'+animal+'/output/pdf/whole_colormap.pdf')
+    pdf_file = dirpath+'/template_container_'+animal+'/output/pdf/whole_colormap.pdf'
+    out_dir = os.fsencode(dirpath+'/template_container_'+animal+'/output/pdf')
     images = []
     #font = ImageFont.truetype("courbi.ttf", 40, encoding="unic")
     font1 = ImageFont.truetype(dirpath+"/arial.ttf", 30, encoding="unic")
@@ -482,15 +580,15 @@ def whole_colormap(colormap='viridis'):
         filename0 = os.fsdecode(file)
         if filename0.endswith(".png"):
             filename1 = filename0[0:(len(filename0)-4)]          #this is the legend name which coresponds to the name in values.csv file.
-            im = Image.open(output_dirpath+'/output/pdf'+'/'+filename0)
+            im = Image.open(dirpath+'/template_container_'+animal+'/output/pdf'+'/'+filename0)
             img = Image.new('RGB', background_size, '#000000')
             img.paste(im, (0,0), mask=im)
             draw = ImageDraw.Draw(img)
             draw.text((10, ((270/width*height)-10)), filename1, fill='#FFFFFF', font=font1)
             images.append(img)
     images[0].save(pdf_file, save_all=True, append_images=images[1:])
-    if os.path.exists(output_dirpath + '/output/pdf/whole_colormap.pdf'):
-        print ("File 'whole_colormap.pdf' saved in an 'output/pdf' folder") #show it in a message box
+    if os.path.exists(dirpath + '/template_container_' + animal + '/output/pdf/whole_colormap.pdf'):
+        print ("File 'whole_colormap.pdf' saved in an 'output/pdf' folder")
         print("--- %s seconds ---" % (time.time() - start_time))
     else:
         print ('Something went wrong!')
@@ -503,7 +601,7 @@ def whole_colormap(colormap='viridis'):
 
 def whole_one_color(color=[0, 255, 0]): #the color must be entered as list [] or string '' in RGB format
     global cv2, os, Image, ImageDraw, ImageColor, ImageFilter, ImageFont, time
-    global labels_list, values_normalized, dirpath, output_dirpath, val, min_max, im_name
+    global labels_list,values_normalized, dirpath, val, min_max, im_name
     
     start_time = time.time()
     
@@ -533,11 +631,11 @@ def whole_one_color(color=[0, 255, 0]): #the color must be entered as list [] or
     color.append(255)
 
     try:
-        values=pd.read_csv(data_dirpath, index_col=0)
+        values=pd.read_csv(dirpath+'/values.csv', index_col=0)
         print("Identified file 'values.csv': \n")
         ds=values.describe()
         ds_to_html = ds.to_html()
-        html_file= open(output_dirpath+"/0_figures.html","a")
+        html_file= open(dirpath+'/template_container_'+animal+"/output/0_figures.html","a")
         html_file.write('<h1>Descriptive Statistics For <i>values.csv</i></h1>\n')
         html_file.write(ds_to_html+'\n')
         html_file.close()
@@ -581,7 +679,7 @@ def whole_one_color(color=[0, 255, 0]): #the color must be entered as list [] or
     draw1.text((29, 5), str(min_max[1]),fill='#000000', font=font)
     draw1.text((28, 250), str(min_max[0]),fill='#000000', font=font)
     colorbar.paste(colorline, (5,10), colorline)
-    colorbar.save(str(output_dirpath+'/colorbar'+'.png'), 'PNG')
+    colorbar.save(str(dirpath+'/template_container_'+animal+'/output/colorbar'+'.png'), 'PNG')
     
     #variable colors holds color with corresponding trasparrency for each value from values.csv file
     colors = []
@@ -602,12 +700,12 @@ def whole_one_color(color=[0, 255, 0]): #the color must be entered as list [] or
         global width, height
         identifier=str(im_name) #name is a variable from the outer loop iterating though the index column
         slice_no = str(slice_no) 
-        out_dir = os.fsencode(output_dirpath+'/output') 
+        out_dir = os.fsencode(dirpath+'/template_container_'+animal+'/output') 
         for file in os.listdir(out_dir):
             filename = os.fsdecode(file)
             if filename.startswith(slice_no):
                 label_name=identifier+'_'+slice_no+'_'+str(t)
-                templ = Image.open(output_dirpath+'/output/'+slice_no+'_'+str(t)+'.png')
+                templ = Image.open(dirpath+'/template_container_'+animal+'/output/'+slice_no+'_'+str(t)+'.png')
                 width, height = templ.size
                 templ1=Image.new('RGBA', (width, height), (255,255,255,0))
                 for i in range(len(labels_l[t])): # t is the variable from outer loop referring to the index in 'templates'
@@ -627,7 +725,7 @@ def whole_one_color(color=[0, 255, 0]): #the color must be entered as list [] or
                 templ1 = templ1.filter(ImageFilter.GaussianBlur(radius=4))
                 templ1.palette = None
                 templ.paste(templ1, (0,0), templ1)
-                templ.save(str(output_dirpath+'/output/'+label_name+'.png'), 'PNG')
+                templ.save(str(dirpath+'/template_container_'+animal+'/output/'+label_name+'.png'), 'PNG')
 
     for name in range(len(im_name)):
         for t in range(len(templates)):
@@ -636,33 +734,33 @@ def whole_one_color(color=[0, 255, 0]): #the color must be entered as list [] or
     #saving .pdf
     #variable im_name is a list that holds names for all samples from the file values.csv as strings
     #width, height go from the previous function and are the width and height of the template and saved images
-    if not os.path.exists(output_dirpath + '/output/pdf'):
-        os.makedirs(output_dirpath + '/output/pdf')
+    if not os.path.exists(dirpath + '/template_container_' + animal + '/output/pdf'):
+        os.makedirs(dirpath+'/template_container_'+animal+'/output/pdf')
     for i in range(len(im_name)):
         colorbar_size = (int(70*width/270), int(height*(270/width)))
         background_size=(int((270*len(templates))+colorbar_size[0]), int(height*(270/width)+25))    
         background = Image.new('RGBA', background_size, (255, 0, 0, 0))
-        cb = Image.open(output_dirpath+'/colorbar.png')
+        cb = Image.open(dirpath+'/template_container_'+animal+'/output/colorbar.png')
         cb_resized=cb.resize(colorbar_size, Image.LANCZOS)
         background.paste(cb_resized, ((270*len(templates)),0))
-        out_dir = os.fsencode(output_dirpath+'/output')
+        out_dir = os.fsencode(dirpath+'/template_container_'+animal+'/output')
         for file in os.listdir(out_dir):
             filename = os.fsdecode(file)
             if filename.startswith(im_name[i]):
-                im = Image.open(output_dirpath+'/output/'+filename)
+                im = Image.open(dirpath+'/template_container_'+animal+'/output/'+filename)
                 im.palette = None
                 resized_filename=im.resize((270, int((270/width*height))), Image.LANCZOS)
                 for j in range(len(templates)):
                     if filename[:(len(filename)-4)].endswith(templates[j]+'_'+str(j)):
                         background.paste(resized_filename, ((j*270),0))
-                background.save(output_dirpath+'/output/pdf/'+im_name[i]+'.png', 'PNG')
+                background.save(dirpath+'/template_container_'+animal+'/output/pdf/'+im_name[i]+'.png', 'PNG')
     #save all pictures from pdf folder in .pdf file
-    if not os.path.exists(output_dirpath + '/output/pdf'):
-        os.makedirs(output_dirpath + '/output/pdf')
-    if os.path.exists(output_dirpath + '/output/pdf/whole_one_color.pdf'):
-        os.remove(output_dirpath + '/output/pdf/whole_one_color.pdf')
-    pdf_file = output_dirpath + '/output/pdf/whole_one_color.pdf'
-    out_dir = os.fsencode(output_dirpath + '/output/pdf')
+    if not os.path.exists(dirpath + '/template_container_' + animal + '/output/pdf'):
+        os.makedirs(dirpath+'/template_container_'+animal+'/output/pdf')
+    if os.path.exists(dirpath + '/template_container_' + animal + '/output/pdf/whole_one_color.pdf'):
+        os.remove(dirpath+'/template_container_'+animal+'/output/pdf/whole_one_color.pdf')
+    pdf_file = dirpath+'/template_container_'+animal+'/output/pdf/whole_one_color.pdf'
+    out_dir = os.fsencode(dirpath+'/template_container_'+animal+'/output/pdf')
     images = []
     font1 = ImageFont.truetype(dirpath+"/arial.ttf", 30, encoding="unic")
     files = os.listdir(out_dir)
@@ -670,14 +768,14 @@ def whole_one_color(color=[0, 255, 0]): #the color must be entered as list [] or
         filename0 = os.fsdecode(file)
         if filename0.endswith(".png"):
             filename1 = filename0[0:(len(filename0)-4)]          #this is the legend name which coresponds to the name in values.csv file.
-            im = Image.open(output_dirpath + '/output/pdf/'+filename0)
+            im = Image.open(dirpath+'/template_container_'+animal+'/output/pdf'+'/'+filename0)
             img = Image.new('RGB', background_size, '#000000')
             img.paste(im, (0,0), mask=im)
             draw = ImageDraw.Draw(img)
             draw.text((10, ((270/width*height)-10)), filename1, fill='#FFFFFF', font=font1)
             images.append(img)
     images[0].save(pdf_file, save_all=True, append_images=images[1:])
-    if os.path.exists(output_dirpath + '/output/pdf/whole_one_color.pdf'):
+    if os.path.exists(dirpath + '/template_container_' + animal + '/output/pdf/whole_one_color.pdf'):
         print ("File 'whole_one_color.pdf' saved in an 'output/pdf' folder")
         print("--- %s seconds ---" % (time.time() - start_time))
     else:
@@ -688,7 +786,7 @@ def whole_one_color(color=[0, 255, 0]): #the color must be entered as list [] or
 
 def two_sided_colormap(colormap='viridis'):
     global cv2, os, Image, ImageDraw, ImageColor, ImageFilter, ImageFont
-    global labels_list,values_normalized, dirpath, output_dirpath, val, min_max, im_name, right, left
+    global labels_list,values_normalized, dirpath, val, min_max, im_name, right, left
     start_time = time.time()
     
     initialization()
@@ -704,7 +802,7 @@ def two_sided_colormap(colormap='viridis'):
     im = ax.imshow(np.array(min_max).reshape((2, 1)),cmap=cmap)
     plt.colorbar(im, ax=ax)
     ax.remove()
-    plt.savefig(output_dirpath+'/colorbar.png', bbox_inches='tight')
+    plt.savefig(dirpath+'/template_container_'+animal+'/output/colorbar.png', bbox_inches='tight')
     colors = []
     im_name = list(val[0].index)
     for i in range(len(val)):
@@ -724,12 +822,12 @@ def two_sided_colormap(colormap='viridis'):
         global width, height
         identifier=str(im_name) #name is a variable from the outer loop iterating though the index column
         slice_no = str(slice_no) 
-        out_dir = os.fsencode(output_dirpath+'/output') 
+        out_dir = os.fsencode(dirpath+'/template_container_'+animal+'/output') 
         for file in os.listdir(out_dir):
             filename = os.fsdecode(file)
             if filename.startswith(slice_no):
                 label_name=identifier+'_'+slice_no+'_'+str(t)
-                templ = Image.open(output_dirpath+'/output/'+slice_no+'_'+str(t)+'.png')
+                templ = Image.open(dirpath+'/template_container_'+animal+'/output/'+slice_no+'_'+str(t)+'.png')
                 width, height = templ.size
                 templ1=Image.new('RGBA', (width, height), (255,255,255,0))
                 for i in range(len(labels_l[t])): # t is the variable from outer loop referring to the index in 'templates'
@@ -756,7 +854,7 @@ def two_sided_colormap(colormap='viridis'):
                 templ1 = templ1.filter(ImageFilter.GaussianBlur(radius=1))
                 templ1.palette = None
                 templ.paste(templ1, (0,0), templ1)
-                templ.save(str(output_dirpath+'/output/'+label_name+'.png'), 'PNG')
+                templ.save(str(dirpath+'/template_container_'+animal+'/output/'+label_name+'.png'), 'PNG')
 
     for name in range(len(im_name)):
         for t in range(len(templates)):
@@ -765,37 +863,37 @@ def two_sided_colormap(colormap='viridis'):
     #saving .pdf
     #variable im_name is a list that holds names for all samples from the file values.csv as strings
     #width, height go from the previous function and are the width and height of the template and saved images
-    if not os.path.exists(output_dirpath + '/output/pdf'):
-        os.makedirs(output_dirpath+'/output/pdf')
+    if not os.path.exists(dirpath + '/template_container_' + animal + '/output/pdf'):
+        os.makedirs(dirpath+'/template_container_'+animal+'/output/pdf')
     for i in range(len(im_name)):
         colorbar_size = (int(70*(270/width)), int(height*(270/width)))
         background_size=(int((270*len(templates))+colorbar_size[0]), int(height*(270/width)+25))    
         background = Image.new('RGBA', background_size, (255, 0, 0, 0))
-        cb = Image.open(output_dirpath+'/colorbar.png')
+        cb = Image.open(dirpath+'/template_container_'+animal+'/output/colorbar.png')
         cb_resized=cb.resize(colorbar_size, Image.LANCZOS)
         background.paste(cb_resized, ((270*len(templates)),10))
-        out_dir = os.fsencode(output_dirpath+'/output')
+        out_dir = os.fsencode(dirpath+'/template_container_'+animal+'/output')
         for file in os.listdir(out_dir):
             filename = os.fsdecode(file)
             if filename.startswith(im_name[i]):
-                im = Image.open(output_dirpath+'/output/'+filename)
+                im = Image.open(dirpath+'/template_container_'+animal+'/output/'+filename)
                 im.palette = None
                 resized_filename=im.resize((270, int((270/width*height))), Image.LANCZOS)
                 for j in range(len(templates)):
                     if filename[:(len(filename)-4)].endswith(templates[j]+'_'+str(j)):
                         background.paste(resized_filename, ((j*270),15))
-                background.save(output_dirpath+'/output/pdf'+im_name[i]+'.png', 'PNG')
+                background.save(dirpath+'/template_container_'+animal+'/output/pdf/'+im_name[i]+'.png', 'PNG')
     #save all pictures from pdf folder in .pdf file
-    if not os.path.exists(output_dirpath+'/output/pdf'):
-        os.makedirs(output_dirpath+'/output/pdf')
-    if os.path.exists(output_dirpath+'/output/pdf/two_sided_colormap.pdf'):
-        os.remove(output_dirpath+'/output/pdf/two_sided_colormap.pdf')
-    pdf_file = output_dirpath+'/output/pdf/two_sided_colormap.pdf'
+    if not os.path.exists(dirpath + '/template_container_' + animal + '/output/pdf'):
+        os.makedirs(dirpath+'/template_container_'+animal+'/output/pdf')
+    if os.path.exists(dirpath + '/template_container_' + animal + '/output/pdf/two_sided_colormap.pdf'):
+        os.remove(dirpath+'/template_container_'+animal+'/output/pdf/two_sided_colormap.pdf')
+    pdf_file = dirpath+'/template_container_'+animal+'/output/pdf/two_sided_colormap.pdf'
     if left is None:
         left = input('Enter the label for the left part (~6 characters): ')
     if right is None:
         right = input('Enter the label for the right part (~6 characters): ')
-    out_dir = os.fsencode(output_dirpath+'/output/pdf')
+    out_dir = os.fsencode(dirpath+'/template_container_'+animal+'/output/pdf')
     images = []
     font1 = ImageFont.truetype(dirpath+"/arial.ttf", 30, encoding="unic")
     files = os.listdir(out_dir)
@@ -803,7 +901,7 @@ def two_sided_colormap(colormap='viridis'):
         filename0 = os.fsdecode(file)
         if filename0.endswith(".png"):
             filename1 = filename0[0:(len(filename0)-4)]          #this is the legend name which coresponds to the name in values.csv file.
-            im = Image.open(output_dirpath+'/output/pdf'+'/'+filename0)
+            im = Image.open(dirpath+'/template_container_'+animal+'/output/pdf'+'/'+filename0)
             img = Image.new('RGB', (background_size[0], background_size[1]+10), '#000000')
             img.paste(im, (0,10), mask=im)
             draw = ImageDraw.Draw(img)
@@ -812,7 +910,7 @@ def two_sided_colormap(colormap='viridis'):
             draw.text((140, 3), right, fill='#FFFFFF', font=font1)
             images.append(img)
     images[0].save(pdf_file, save_all=True, append_images=images[1:])
-    if os.path.exists(output_dirpath+'/output/pdf/two_sided_colormap.pdf'):
+    if os.path.exists(dirpath + '/template_container_' + animal + '/output/pdf/two_sided_colormap.pdf'):
         print ("File 'two_sided_colormap.pdf' saved in an 'output/pdf' folder")
         print("--- %s seconds ---" % (time.time() - start_time))
     else:
@@ -826,7 +924,7 @@ def two_sided_colormap(colormap='viridis'):
 
 def two_sided_one_color(color1=[255, 120, 0], color2=[0, 0, 255]):
     global cv2, os, Image, ImageDraw, ImageColor, ImageFilter, ImageFont
-    global labels_list,values_normalized, dirpath, output_dirpath, data_dirpath, data_dirpath2, val, min_max, im_name, left, right
+    global labels_list,values_normalized, dirpath, val, min_max, im_name, left, right
     start_time = time.time()
     
     initialization()
@@ -856,10 +954,10 @@ def two_sided_one_color(color1=[255, 120, 0], color2=[0, 0, 255]):
         color[arg].append(255) 
     #open values1.csv and values2.csv
     try:
-        values1=pd.read_csv(data_dirpath, index_col=0)
+        values1=pd.read_csv(dirpath+'/values1.csv', index_col=0)
         ds1=values1.describe()
         ds1_to_html = ds1.to_html()
-        html_file = open(output_dirpath+"/0_figures.html","a")
+        html_file = open(dirpath+'/template_container_'+animal+"/output/0_figures.html","a")
         html_file.write('<h1>Descriptive Statistics For <i>values1.csv</i></h1>\n')
         html_file.write(ds1_to_html+'\n')
         html_file.close()
@@ -874,10 +972,10 @@ def two_sided_one_color(color1=[255, 120, 0], color2=[0, 0, 255]):
         print("Data types in 'values1.csv' are not uniform.")
         pass
     try:
-        values2=pd.read_csv(data_dirpath2, index_col=0)
+        values2=pd.read_csv(dirpath+'/values2.csv', index_col=0)
         ds2=values2.describe()
         ds2_to_html = ds2.to_html()
-        html_file= open(output_dirpath+"/0_figures.html","a")
+        html_file= open(dirpath+'/template_container_'+animal+"/output/0_figures.html","a")
         html_file.write('<h1>Descriptive Statistics For <i>values2.csv</i></h1>\n')
         html_file.write(ds2_to_html+'\n')
         html_file.close()
@@ -931,7 +1029,7 @@ def two_sided_one_color(color1=[255, 120, 0], color2=[0, 0, 255]):
         draw1.text((29, 5), str(min_max[1]),fill='#000000', font=font)
         draw1.text((28, 250), str(min_max[0]),fill='#000000', font=font)
         colorbar.paste(colorline, (5,10), colorline)
-        colorbar.save(str(output_dirpath+'colorbar'+str(p+1)+'.png'), 'PNG')
+        colorbar.save(str(dirpath+'/template_container_'+animal+'/output/colorbar'+str(p+1)+'.png'), 'PNG')
 
     #variable colors holds color with corresponding transparency for each value from values.csv file
     colors = []
@@ -952,12 +1050,12 @@ def two_sided_one_color(color1=[255, 120, 0], color2=[0, 0, 255]):
         global width, height
         identifier=str(im_name) #name is a variable from the outer loop iterating though the index column
         slice_no = str(slice_no) 
-        out_dir = os.fsencode(output_dirpath+'/output') 
+        out_dir = os.fsencode(dirpath+'/template_container_'+animal+'/output') 
         for file in os.listdir(out_dir):
             filename = os.fsdecode(file)
             if filename.startswith(slice_no):
                 label_name=identifier+'_'+slice_no+'_'+str(t)
-                templ = Image.open(output_dirpath+'/output'+slice_no+'_'+str(t)+'.png')
+                templ = Image.open(dirpath+'/template_container_'+animal+'/output/'+slice_no+'_'+str(t)+'.png')
                 width, height = templ.size
                 templ1=Image.new('RGBA', (width, height), (255,255,255,0))
                 for i in range(len(labels_l[t])): # t is the variable from outer loop referring to the index in 'templates'
@@ -984,7 +1082,7 @@ def two_sided_one_color(color1=[255, 120, 0], color2=[0, 0, 255]):
                 templ1 = templ1.filter(ImageFilter.GaussianBlur(radius=4))
                 templ1.palette = None
                 templ.paste(templ1, (0,0), templ1)
-                templ.save(str(output_dirpath+'/output'+label_name+'.png'), 'PNG')
+                templ.save(str(dirpath+'/template_container_'+animal+'/output/'+label_name+'.png'), 'PNG')
 
     for name in range(len(im_name)):
         for t in range(len(templates)):
@@ -993,8 +1091,8 @@ def two_sided_one_color(color1=[255, 120, 0], color2=[0, 0, 255]):
     #saving .pdf
     #variable im_name is a list that holds names for all samples from the file values.csv as strings
     #width, height go from the previous function and are the width and height of the template and saved images
-    if not os.path.exists(output_dirpath+'/output/pdf'):
-        os.makedirs(output_dirpath+'/output/pdf')
+    if not os.path.exists(dirpath + '/template_container_' + animal + '/output/pdf'):
+        os.makedirs(dirpath+'/template_container_'+animal+'/output/pdf')
     for i in range(len(im_name)):
         colorbar_size = (int(75*(270/width)), int(height*(270/width)))
         if color[0]==color[1]:
@@ -1003,22 +1101,22 @@ def two_sided_one_color(color1=[255, 120, 0], color2=[0, 0, 255]):
             background_size=(int((270*len(templates))+(colorbar_size[0]*2)), int(height*(270/width)+25))
         background = Image.new('RGBA', background_size, (255, 0, 0, 0))
         if color[0]==color[1]:
-            cb = Image.open(output_dirpath+'/colorbar1.png')
+            cb = Image.open(dirpath+'/template_container_'+animal+'/output/colorbar1.png')
             cb_resized=cb.resize(colorbar_size, Image.LANCZOS)
             background.paste(cb_resized, ((270*len(templates)),10))
         else:
-            cb1 = Image.open(output_dirpath+'/colorbar1.png')
+            cb1 = Image.open(dirpath+'/template_container_'+animal+'/output/colorbar1.png')
             cb1_resized=cb1.resize(colorbar_size, Image.LANCZOS)
-            cb2 = Image.open(output_dirpath+'/colorbar2.png')
+            cb2 = Image.open(dirpath+'/template_container_'+animal+'/output/colorbar2.png')
             cb2_resized=cb2.resize(colorbar_size, Image.LANCZOS)
             background.paste(cb1_resized, (0,10))
             background.paste(cb2_resized, ((270*len(templates)+colorbar_size[0]),10))
-        out_dir = os.fsencode(output_dirpath+'/output')
+        out_dir = os.fsencode(dirpath+'/template_container_'+animal+'/output')
         
         for file in os.listdir(out_dir):
             filename = os.fsdecode(file)
             if filename.startswith(im_name[i]):
-                im = Image.open(output_dirpath+'/output'+filename)
+                im = Image.open(dirpath+'/template_container_'+animal+'/output/'+filename)
                 im.palette = None
                 resized_filename=im.resize((270, int((270/width*height))), Image.LANCZOS)
                 for j in range(len(templates)):
@@ -1027,18 +1125,18 @@ def two_sided_one_color(color1=[255, 120, 0], color2=[0, 0, 255]):
                             background.paste(resized_filename, ((j*270),15))
                         else:
                             background.paste(resized_filename, (((j*270)+colorbar_size[0]),0))
-                background.save(output_dirpath+'/output'+im_name[i]+'.png', 'PNG')
+                background.save(dirpath+'/template_container_'+animal+'/output/pdf/'+im_name[i]+'.png', 'PNG')
     #save all pictures from pdf folder in .pdf file
-    if not os.path.exists(output_dirpath+'/output/pdf'):
-        os.makedirs(output_dirpath+'/output/pdf')
-    if os.path.exists(output_dirpath+'/output/pdf/two_sided_one_color.pdf'):
-        os.remove(output_dirpath+'/output/pdf/two_sided_one_color.pdf')
-    pdf_file = output_dirpath+'/output/pdf/two_sided_one_color.pdf'
+    if not os.path.exists(dirpath + '/template_container_' + animal + '/output/pdf'):
+        os.makedirs(dirpath+'/template_container_'+animal+'/output/pdf')
+    if os.path.exists(dirpath + '/template_container_' + animal + '/output/pdf/two_sided_one_color.pdf'):
+        os.remove(dirpath+'/template_container_'+animal+'/output/pdf/two_sided_one_color.pdf')
+    pdf_file = dirpath+'/template_container_'+animal+'/output/pdf/two_sided_one_color.pdf'
     if left is None:
         left = input('Enter the label for the left part (~6 characters): ')
     if right is None:
         right = input('Enter the label for the right part (~6 characters): ')
-    out_dir = os.fsencode(output_dirpath+'/output/pdf')
+    out_dir = os.fsencode(dirpath+'/template_container_'+animal+'/output/pdf')
     images = []
     #font = ImageFont.truetype("courbi.ttf", 40, encoding="unic")
     font1 = ImageFont.truetype(dirpath+"/arial.ttf", 30, encoding="unic")
@@ -1047,7 +1145,7 @@ def two_sided_one_color(color1=[255, 120, 0], color2=[0, 0, 255]):
         filename0 = os.fsdecode(file)
         if filename0.endswith(".png"):
             filename1 = filename0[0:(len(filename0)-4)]          #this is the legend name which coresponds to the name in values.csv file.
-            im = Image.open(output_dirpath+'/output/pdf'+'/'+filename0)
+            im = Image.open(dirpath+'/template_container_'+animal+'/output/pdf'+'/'+filename0)
             img = Image.new('RGB', background_size, '#000000')
             img.paste(im, (0,0), mask=im)
             draw = ImageDraw.Draw(img)
@@ -1056,7 +1154,7 @@ def two_sided_one_color(color1=[255, 120, 0], color2=[0, 0, 255]):
             draw.text((140+colorbar_size[0], 3), right, fill='#FFFFFF', font=font1)
             images.append(img)
     images[0].save(pdf_file, save_all=True, append_images=images[1:])
-    if os.path.exists(output_dirpath+'/output/pdf/two_sided_one_color.pdf'):
+    if os.path.exists(dirpath + '/template_container_' + animal + '/output/pdf/two_sided_one_color.pdf'):
         print ("File 'two_sided_one_color.pdf' saved in an 'output/pdf' folder")
         print("--- %s seconds ---" % (time.time() - start_time))
     else:
@@ -1070,9 +1168,7 @@ def two_sided_one_color(color1=[255, 120, 0], color2=[0, 0, 255]):
 #each next line is the areas that should be represented on a custom label where the 3rd line will be applied to the first 
 #slice (template) mentioned in the second line and so on.
 
-                        
 def create_label(color=(255, 0, 0, 255)):
-    global output_dirpath
     start_time = time.time()
     
     initialization()
@@ -1083,7 +1179,7 @@ def create_label(color=(255, 0, 0, 255)):
     
     for t in range(len(templates)):
         slice_no=str(templates[t])
-        templ = Image.open(output_dirpath+'/output/'+slice_no+'_'+str(t)+'.png')
+        templ = Image.open(dirpath+'/template_container_'+animal+'/output/'+slice_no+'_'+str(t)+'.png')
         width, height = templ.size
         templ1=Image.new('RGBA', (width, height), (255,255,255,0))
         for i in range(len(labels_l[t])): # t is the variable from outer loop referring to the index in 'templates'
@@ -1101,7 +1197,7 @@ def create_label(color=(255, 0, 0, 255)):
                         templ1.putpixel((pixel_w-1, pixel_h+1), tuple(color))
                         templ1.putpixel((pixel_w+1, pixel_h-1), tuple(color))
         templ1 = templ1.filter(ImageFilter.GaussianBlur(radius=1))
-        templ1.save(str(output_dirpath+slice_no+'_custom_label.png'), 'PNG')
+        templ1.save(str(dirpath+'/template_container_'+animal+'/output/'+slice_no+'_custom_label.png'), 'PNG')
     print("--- %s seconds ---" % (time.time() - start_time))
 
 print("Brainplot was imported successfully.")
