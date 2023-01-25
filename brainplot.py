@@ -44,10 +44,6 @@ def initialization():
         animal = readings[0]
         if animal.lower() not in urls.keys():
             print ('Wrong name of species: '+animal)
-        #else:
-            #print ('Animal = '+animal + ' \n. Follow the url '+ urls[animal.lower()]+ ' to choose template slices to be used in your data representation')
-        #print("Labels available for regions on "+animal+"'s brain:")
-        #areas_available(animal)
 
 
         #set up list of templates   
